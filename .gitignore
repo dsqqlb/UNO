@@ -1,0 +1,21 @@
+# 依赖：npm install 会自动重新生成，不需要提交
+node_modules/
+
+# 构建产物：npm run build 会重新生成
+dist/
+
+# 日志
+*.log
+npm-debug.log*
+
+# 运行时 / 环境变量
+.env
+.env.local
+
+# 操作系统杂项
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
