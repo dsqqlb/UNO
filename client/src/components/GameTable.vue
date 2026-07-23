@@ -76,6 +76,7 @@
           :class="{
             playable: myTurn && playable.has(card.id),
             disabled: myTurn && !playable.has(card.id),
+            pending: pendingPlayId === card.id,
           }"
           @click="onCardClick(card)"
         />
@@ -125,6 +126,9 @@ const myArea = ref(null);
 // 选颜色弹窗
 const colorModal = ref(false);
 let pendingCardId = null;
+
+// 已点击、等待服务器确认的牌（用于即时反馈，掩盖网络延迟）
+const pendingPlayId = ref(null);
 
 // 派生状态
 const g = computed(() => store.game || { players: [], log: [] });
@@ -178,16 +182,19 @@ const stackText = computed(() => {
 // ---------- 交互 ----------
 function onCardClick(card) {
   if (!(myTurn.value && playable.value.has(card.id))) return;
-  const isWild = card.kind === 'wild' || card.kind === 'wild_draw4';
+  if (pendingPlayId.value) return; // 已有出牌在等确认，避免连点
+  const isWild = card.isWild || card.kind === 'wild' || card.kind === 'wild_draw4';
   if (isWild) {
     pendingCardId = card.id;
     colorModal.value = true;
   } else {
+    pendingPlayId.value = card.id; // 立刻给反馈
     playCard(card.id);
   }
 }
 function pickColor(color) {
   if (pendingCardId) {
+    pendingPlayId.value = pendingCardId;
     playCard(pendingCardId, color);
     pendingCardId = null;
   }
@@ -322,6 +329,7 @@ watch(
   () => store.game,
   (s, prev) => {
     if (!s) return;
+    pendingPlayId.value = null; // 收到新状态，清除等待中的出牌反馈
     if (prev) {
       if (s.currentColor !== prev.currentColor) flashColor(s.currentColor);
       if (s.topCard && prev.topCard && s.topCard.id !== prev.topCard.id) {

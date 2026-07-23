@@ -551,6 +551,13 @@ input:focus {
   cursor: not-allowed;
 }
 
+/* 已点击、等待服务器确认：立刻抬起变淡，让点击有即时反馈 */
+.hand .card.pending {
+  transform: translateY(-22px) scale(0.96);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .hand .card.playable:hover {
   transform: translateY(-14px);
 }
