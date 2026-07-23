@@ -252,7 +252,31 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
+// 心跳保活：Cloudflare / Nginx 等代理会掐断空闲 WebSocket（默认约 100s）。
+// 定时 ping 让连接保持活跃，同时清理真正掉线的连接。
+const HEARTBEAT_MS = 25000;
+const heartbeat = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      ws.terminate();
+      continue;
+    }
+    ws.isAlive = false;
+    try {
+      ws.ping();
+    } catch {
+      /* ignore */
+    }
+  }
+}, HEARTBEAT_MS);
+wss.on('close', () => clearInterval(heartbeat));
+
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   // 每个连接绑定的上下文
   const ctx = { playerId: genId(), roomId: null, name: null };
 

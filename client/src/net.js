@@ -30,16 +30,27 @@ function wsUrl() {
   return `${proto}://${location.host}/ws`;
 }
 
+let gotMessage = false; // 本次连接是否收到过服务器消息（用于区分"真连上了"）
+
 function connect(onOpen) {
+  gotMessage = false;
   ws = new WebSocket(wsUrl());
   ws.onopen = () => onOpen && onOpen();
-  ws.onmessage = (ev) => handleServer(JSON.parse(ev.data));
+  ws.onmessage = (ev) => {
+    gotMessage = true;
+    handleServer(JSON.parse(ev.data));
+  };
   ws.onclose = () => handleClose();
   ws.onerror = () => {};
 }
 
 function handleClose() {
   const s = loadSession();
+  // 从未成功通信、且不是重连场景 → 明确报错（常见于 WebSocket 被代理/穿透拦截）
+  if (!gotMessage && !s) {
+    showToast('无法连接服务器：WebSocket 未连通，请检查内网穿透是否放行 WebSocket');
+    return;
+  }
   if (s && reconnect.attempts < reconnect.max) {
     reconnect.attempts += 1;
     showToast(`连接断开，正在重连…（${reconnect.attempts}）`);
