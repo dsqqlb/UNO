@@ -50,6 +50,10 @@
           <div class="dir-text">方向：{{ g.direction === 1 ? '顺时针 ↻' : '逆时针 ↺' }}</div>
           <div class="stack-text">{{ stackText }}</div>
           <button v-if="g.drawnPendingForYou" class="btn small" @click="onPass">跳过（不出）</button>
+          <div v-if="offlineCurrent" class="offline-skip">
+            {{ offlineCurrent.name }} 掉线了
+            <button class="btn small" @click="onSkipOffline">跳过其回合</button>
+          </div>
         </div>
       </div>
     </div>
@@ -93,6 +97,7 @@ import {
   callUno as callUnoAction,
   catchUno,
   restart,
+  skipOffline,
 } from '../net';
 import {
   flyCard,
@@ -155,6 +160,13 @@ const turnText = computed(() => {
   const c = g.value.players.find((p) => p.id === g.value.currentPlayerId);
   return `轮到 ${c ? c.name : '?'}`;
 });
+// 当前轮到的玩家是否掉线（供其他在线玩家跳过，避免卡死）
+const offlineCurrent = computed(() => {
+  if (g.value.finished) return null;
+  const cur = g.value.players.find((p) => p.id === g.value.currentPlayerId);
+  return cur && !cur.connected ? cur : null;
+});
+
 const stackText = computed(() => {
   if (!(g.value.pendingDraw > 0)) return '';
   const t = g.value.pendingDrawType === 'wild_draw4' ? '+4' : '+2';
@@ -191,6 +203,9 @@ function onDraw() {
 }
 function onPass() {
   pass();
+}
+function onSkipOffline() {
+  skipOffline();
 }
 function onUno() {
   callUnoAction();

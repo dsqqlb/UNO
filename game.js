@@ -250,6 +250,28 @@ class Game {
     return { ok: true };
   }
 
+  /**
+   * 跳过当前掉线玩家的回合（任何在线玩家可触发，避免卡死）
+   * 若其正面临叠加惩罚，则先替他把牌接下。
+   */
+  skipDisconnected() {
+    if (this.finished) return { ok: false, error: '游戏已结束' };
+    const cur = this.currentPlayer;
+    if (cur.connected) return { ok: false, error: '当前玩家在线，无法跳过' };
+    if (this.pendingDraw > 0) {
+      cur.hand.push(...this._draw(this.pendingDraw));
+      cur.saidUno = false;
+      this._pushLog(`${cur.name} 掉线，替其接下 ${this.pendingDraw} 张`);
+      this.pendingDraw = 0;
+      this.pendingDrawType = null;
+    } else {
+      this._pushLog(`${cur.name} 掉线，跳过其回合`);
+    }
+    this.drawnPending = null;
+    this._advanceTurn(1);
+    return { ok: true };
+  }
+
   callUno(playerId) {
     if (!this.options.callUno) return { ok: false, error: '本局未开启喊 UNO' };
     const player = this._findPlayer(playerId);

@@ -139,6 +139,9 @@ export function drawCard() {
 export function pass() {
   raw({ type: 'pass' });
 }
+export function skipOffline() {
+  raw({ type: 'skipOffline' });
+}
 export function callUno() {
   raw({ type: 'callUno' });
 }

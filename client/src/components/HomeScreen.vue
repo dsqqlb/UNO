@@ -49,6 +49,7 @@
           <input v-model="roomId" maxlength="4" inputmode="numeric" placeholder="4 位房间号" @keyup.enter="join" />
         </label>
         <button class="btn primary" @click="join">加入</button>
+        <p class="hint">掉线了？用<b>原来的昵称</b>和房间号加入，即可回到原座位。</p>
         <button class="btn ghost back-btn" @click="step = 'choose'">返回</button>
       </div>
 

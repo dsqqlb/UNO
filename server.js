@@ -159,6 +159,17 @@ function broadcastGame(room) {
 // 断线宽限期：这段时间内重连可无缝回到房间；超时才真正清理
 const GRACE_MS = 30000;
 
+function isOnline(member) {
+  return member && member.ws && member.ws.readyState === member.ws.OPEN;
+}
+
+// 房主掉线时，把房主身份转给一个在线玩家，保证有人能开始/重开
+function transferHostToOnline(room) {
+  if (isOnline(room.members.get(room.hostId))) return;
+  const online = [...room.members.values()].find((m) => isOnline(m));
+  if (online) room.hostId = online.id;
+}
+
 // 连接断开处理：标记离线并安排宽限清理（区别于主动 leave 的立即移除）
 function handleDisconnect(ctx, closingWs) {
   const { roomId, playerId } = ctx;
@@ -170,12 +181,11 @@ function handleDisconnect(ctx, closingWs) {
   if (member.ws && member.ws !== closingWs) return;
 
   member.ws = null;
-  if (room.game) {
-    room.game.setConnected(playerId, false);
-    broadcastGame(room);
-  } else {
-    broadcastLobby(room);
-  }
+  if (room.game) room.game.setConnected(playerId, false);
+  // 房主掉线：转移房主身份给在线玩家
+  if (room.hostId === playerId) transferHostToOnline(room);
+  if (room.game) broadcastGame(room);
+  else broadcastLobby(room);
 
   // 宽限期后仍未重连才真正清理
   if (member.cleanupTimer) clearTimeout(member.cleanupTimer);
@@ -321,7 +331,43 @@ function handleMessage(ws, ctx, msg) {
       const name = String(msg.name || '玩家').slice(0, 12);
       const room = rooms.get(roomId);
       if (!room) return send(ws, 'error', { error: '房间不存在' });
-      if (room.game) return send(ws, 'error', { error: '该房间已开始游戏' });
+
+      // 同名座位已存在 → 接管（掉线重连的核心：按昵称回到原座位）
+      const existing = [...room.members.values()].find((m) => m.name === name);
+      if (existing) {
+        if (isOnline(existing) && !room.game) {
+          return send(ws, 'error', { error: '该昵称已被占用，请换一个' });
+        }
+        // 关掉可能残留的旧连接，接管座位
+        if (existing.ws && existing.ws !== ws) {
+          try {
+            existing.ws.close();
+          } catch {
+            /* ignore */
+          }
+        }
+        if (existing.cleanupTimer) {
+          clearTimeout(existing.cleanupTimer);
+          existing.cleanupTimer = null;
+        }
+        existing.ws = ws;
+        ctx.playerId = existing.id;
+        ctx.roomId = roomId;
+        ctx.name = name;
+        if (room.game) {
+          room.game.setConnected(existing.id, true);
+          broadcastGame(room);
+        } else {
+          broadcastLobby(room);
+        }
+        break;
+      }
+
+      // 没有同名座位：作为新玩家加入（仅大厅阶段）
+      if (room.game)
+        return send(ws, 'error', {
+          error: '游戏已开始；若是掉线重连，请用你原来的昵称加入',
+        });
       if (room.members.size >= MAX_PLAYERS)
         return send(ws, 'error', { error: '房间已满' });
 
@@ -422,6 +468,16 @@ function handleMessage(ws, ctx, msg) {
       if (!room || !room.game)
         return send(ws, 'error', { error: '游戏未开始' });
       const result = room.game.catchUno(ctx.playerId, msg.targetId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      broadcastGame(room);
+      break;
+    }
+
+    case 'skipOffline': {
+      const room = rooms.get(ctx.roomId);
+      if (!room || !room.game)
+        return send(ws, 'error', { error: '游戏未开始' });
+      const result = room.game.skipDisconnected();
       if (!result.ok) return send(ws, 'error', { error: result.error });
       broadcastGame(room);
       break;

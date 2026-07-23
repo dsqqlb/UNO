@@ -697,6 +697,12 @@ input:focus {
   min-height: 20px;
 }
 
+.offline-skip {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #ff8080;
+}
+
 .btn.small {
   width: auto;
   padding: 6px 14px;
